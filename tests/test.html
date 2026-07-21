@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pruebas · Gestor de Cuentas</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 820px; margin: 0 auto; padding: 24px;
+           background: #0f1115; color: #e8eaf0; }
+    h1 { font-size: 20px; }
+    #summary { padding: 12px 16px; border-radius: 10px; font-weight: 650; margin: 16px 0; }
+    .pass { background: #34d39922; color: #34d399; }
+    .fail { background: #fb718522; color: #fb7185; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    td, th { padding: 7px 9px; border-bottom: 1px solid #2a2f3a; text-align: left; vertical-align: top; }
+    th { color: #6b7382; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+    tr.ko { background: #fb718514; }
+    .ok-mark { color: #34d399; } .ko-mark { color: #fb7185; }
+    code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: #9aa3b2;
+           word-break: break-all; }
+    .group { margin-top: 26px; color: #5b8cff; font-size: 12px; text-transform: uppercase;
+             letter-spacing: .07em; font-weight: 700; }
+    p.hint { color: #6b7382; font-size: 13px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <h1>Pruebas del motor financiero</h1>
+  <p class="hint">
+    Sirve el proyecto (<code>python tools/serve.py</code>) y abre
+    <code>http://localhost:5178/tests/test.html</code>. Sin dependencias ni instalación:
+    son módulos ES corriendo en el navegador.
+  </p>
+  <div id="summary">Ejecutando…</div>
+  <div id="out"></div>
+
+  <script type="module">
+    import * as F from '../js/finance.js';
+    import * as D from '../js/format.js';
+
+    const results = [];
+    let group = '';
+
+    const describe = (name) => { group = name; };
+    const eq = (name, actual, expected) => {
+      const ok = JSON.stringify(actual) === JSON.stringify(expected);
+      results.push({ group, name, actual, expected, ok });
+    };
+    /** Compara con tolerancia, para lo que sale de una bisección o un redondeo. */
+    const near = (name, actual, expected, tol = 0.01) => {
+      const ok = Math.abs(actual - expected) <= tol;
+      results.push({ group, name, actual, expected: `${expected} ±${tol}`, ok });
+    };
+
+    /* ------------------------------------------------------------ fechas -- */
+    describe('Fechas');
+    eq('31 ene + 1 mes → 28 feb', D.addMonths('2026-01-31', 1), '2026-02-28');
+    eq('31 ene + 1 mes en bisiesto → 29 feb', D.addMonths('2028-01-31', 1), '2028-02-29');
+    eq('31 ene + 3 meses → 30 abr', D.addMonths('2026-01-31', 3), '2026-04-30');
+    eq('31 dic + 1 mes cruza el año', D.addMonths('2026-12-31', 1), '2027-01-31');
+    eq('resta meses', D.addMonths('2026-03-15', -4), '2025-11-15');
+    eq('suma días cruzando mes', D.addDays('2026-01-30', 3), '2026-02-02');
+    eq('29 feb bisiesto existe', D.addDays('2028-02-28', 1), '2028-02-29');
+
+    /* ---------------------------------------------------- recurrencias --- */
+    describe('Recurrencias');
+    const mk = (over) => ({
+      id: 't', type: 'simple', kind: 'gasto', name: 'test', amount: 10,
+      frequency: 'mensual', startDate: '2026-01-15', endMode: 'nunca',
+      annualIncrease: 0, ...over,
+    });
+
+    eq('mensual desde el 31 no se queda clavado en el 28',
+      F.occurrencesBetween(mk({ startDate: '2026-01-31', endMode: 'repeticiones', occurrences: 4 }),
+        '2026-01-01', '2026-12-31').map((o) => o.date),
+      ['2026-01-31', '2026-02-28', '2026-03-31', '2026-04-30']);
+
+    eq('semanal',
+      F.occurrencesBetween(mk({ frequency: 'semanal', startDate: '2026-01-01', endMode: 'repeticiones', occurrences: 3 }),
+        '2026-01-01', '2026-12-31').map((o) => o.date),
+      ['2026-01-01', '2026-01-08', '2026-01-15']);
+
+    eq('trimestral',
+      F.occurrencesBetween(mk({ frequency: 'trimestral', endMode: 'repeticiones', occurrences: 3 }),
+        '2026-01-01', '2026-12-31').map((o) => o.date),
+      ['2026-01-15', '2026-04-15', '2026-07-15']);
+
+    eq('endMode fecha no se pasa del límite',
+      F.occurrencesBetween(mk({ endMode: 'fecha', endDate: '2026-03-20' }),
+        '2026-01-01', '2026-12-31').map((o) => o.date),
+      ['2026-01-15', '2026-02-15', '2026-03-15']);
+
+    eq('el rango recorta por la izquierda',
+      F.occurrencesBetween(mk({ endMode: 'repeticiones', occurrences: 6 }),
+        '2026-04-01', '2026-12-31').map((o) => o.date),
+      ['2026-04-15', '2026-05-15', '2026-06-15']);
+
+    eq('recurrencia futura no aparece en un rango pasado',
+      F.occurrencesBetween(mk({ startDate: '2027-01-01' }), '2026-01-01', '2026-12-31'), []);
+
+    eq('revalorización: sube en el aniversario, no antes',
+      F.occurrencesBetween(mk({ amount: 100, annualIncrease: 10, endMode: 'repeticiones', occurrences: 14 }),
+        '2026-01-01', '2027-12-31').map((o) => o.amount).filter((_, i) => [0, 11, 12, 13].includes(i)),
+      [100, 100, 110, 110]);
+
+    near('equivalente mensual de un anual', F.monthlyEquivalent(mk({ frequency: 'anual', amount: 1200 })), 100);
+    near('equivalente mensual de un semanal', F.monthlyEquivalent(mk({ frequency: 'semanal', amount: 10 })), 43.45, 0.1);
+
+    /* -------------------------------------------------------- préstamos -- */
+    describe('Préstamos');
+    near('cuota 18.000 € al 6,5 % a 60 meses', F.loanPayment(18000, 6.5, 60), 352.19);
+    eq('sin intereses reparte lineal', F.loanPayment(1200, 0, 12), 100);
+    near('una sola cuota', F.loanPayment(1000, 12, 1), 1010);
+    eq('capital 0 → cuota 0', F.loanPayment(0, 5, 12), 0);
+
+    const s = F.loanSchedule({ principal: 18000, annualRate: 6.5, months: 60, startDate: '2026-01-01' });
+    eq('nº de cuotas', s.rows.length, 60);
+    near('el capital amortizado suma el principal', s.rows.reduce((a, r) => a + r.principal, 0), 18000);
+    eq('el saldo final es exactamente cero', s.rows.at(-1).balance, 0);
+    near('intereses totales', s.totalInterest, 3131.42, 0.05);
+    near('el primer interés es capital × tipo mensual', s.rows[0].interest, 18000 * 0.065 / 12);
+    eq('los intereses decrecen', s.rows.every((r, i, a) => i === 0 || r.interest <= a[i - 1].interest), true);
+    eq('el capital amortizado crece', s.rows.every((r, i, a) => i === 0 || r.principal >= a[i - 1].principal), true);
+
+    // TAE: sin comisiones ni seguro es solo la capitalización del TIN.
+    near('TAE sin extras = (1+TIN/12)^12−1', F.loanSchedule({ principal: 18000, annualRate: 6.5, months: 60 }).apr,
+      ((1 + 0.065 / 12) ** 12 - 1) * 100, 0.02);
+    near('TAE con comisión y seguro sube',
+      F.loanSchedule({ principal: 18000, annualRate: 6.5, months: 60, insuranceMonthly: 12, openingFee: 300 }).apr,
+      8.97, 0.05);
+    eq('TAE de un préstamo al 0 % sin gastos es 0',
+      F.loanSchedule({ principal: 1200, annualRate: 0, months: 12 }).apr, 0);
+
+    const s0 = F.loanSchedule({ principal: 1200, annualRate: 0, months: 12, startDate: '2026-01-01' });
+    near('al 0 % no hay intereses', s0.totalInterest, 0);
+    near('al 0 % se devuelve el capital', s0.totalPaid, 1200);
+
+    /* ------------------------------------------------------- proyección -- */
+    describe('Proyección');
+    const base = {
+      settings: { currency: 'EUR', locale: 'es-ES', initialBalance: 1000, trackingStart: '2026-01-01' },
+      transactions: [],
+      recurrings: [mk({ kind: 'ingreso', amount: 500, startDate: '2026-01-10' })],
+    };
+    const p = F.project(base, 12, '2026-01-01');
+    eq('devuelve un mes por cada mes del horizonte', p.months.length, 12);
+    near('saldo de partida', p.startBalance, 1000);
+    near('saldo final = inicial + 12 ingresos', p.endBalance, 1000 + 500 * 12);
+    near('ingresos acumulados', p.totalIncome, 6000);
+    eq('los saldos son crecientes', p.months.every((m, i, a) => i === 0 || m.balance > a[i - 1].balance), true);
+
+    const neg = F.project({
+      ...base,
+      settings: { ...base.settings, initialBalance: 100 },
+      recurrings: [mk({ kind: 'gasto', amount: 200, startDate: '2026-01-10' })],
+    }, 6, '2026-01-01');
+    eq('detecta el mínimo en negativo', neg.lowest.balance < 0, true);
+    near('saldo mínimo al final del horizonte', neg.lowest.balance, 100 - 200 * 6);
+
+    eq('un recurrente archivado no cuenta',
+      F.project({ ...base, recurrings: [{ ...base.recurrings[0], archived: true }] }, 6, '2026-01-01').totalIncome, 0);
+
+    near('balanceAt respeta trackingStart',
+      F.balanceAt({ ...base, recurrings: [mk({ kind: 'gasto', amount: 50, startDate: '2020-01-05' })] }, '2026-01-31'),
+      950); // solo cuenta el vencimiento de enero de 2026, no los de 2020-2025
+
+    /* --------------------------------------------------- confirmaciones -- */
+    describe('Confirmación de cobros');
+
+    // Un recurrente que empezó hace tiempo, para tener vencimientos ya pasados.
+    const hoy = D.todayISO();
+    const haceUnMes = D.addMonths(hoy, -1);
+    const dentroDeUnMes = D.addMonths(hoy, 1);
+
+    const conRec = (confirmations = []) => ({
+      settings: { currency: 'EUR', locale: 'es-ES', initialBalance: 1000, trackingStart: haceUnMes },
+      transactions: [],
+      recurrings: [{
+        id: 'r1', type: 'simple', kind: 'gasto', name: 'Luz', amount: 50,
+        frequency: 'mensual', startDate: haceUnMes, endMode: 'nunca',
+        annualIncrease: 0, archived: false,
+      }],
+      confirmations,
+    });
+
+    // El vencimiento de hace un mes ya pasó: se asume cobrado y resta.
+    near('un vencimiento pasado se descuenta sin confirmarlo',
+      F.balanceAt(conRec(), hoy), 1000 - 50 - 50);   // el de hace un mes y el de hoy
+
+    eq('un vencimiento pasado sin confirmar está "asumido"',
+      F.occurrencesWithStatus(conRec(), haceUnMes, haceUnMes)[0].status, 'asumido');
+
+    eq('un vencimiento futuro está "previsto"',
+      F.occurrencesWithStatus(conRec(), dentroDeUnMes, dentroDeUnMes)[0].status, 'previsto');
+
+    const confirmado = [{ recurringId: 'r1', dueDate: haceUnMes, paidDate: haceUnMes, amount: null, skipped: false }];
+    eq('confirmado tal cual queda "cobrado"',
+      F.occurrencesWithStatus(conRec(confirmado), haceUnMes, haceUnMes)[0].status, 'cobrado');
+    near('confirmar con el mismo importe NO mueve el saldo',
+      F.balanceAt(conRec(confirmado), hoy), F.balanceAt(conRec(), hoy));
+
+    const distinto = [{ recurringId: 'r1', dueDate: haceUnMes, paidDate: haceUnMes, amount: 80, skipped: false }];
+    near('confirmar con otro importe usa el importe real',
+      F.balanceAt(conRec(distinto), hoy), 1000 - 80 - 50);
+
+    const omitido = [{ recurringId: 'r1', dueDate: haceUnMes, paidDate: haceUnMes, amount: null, skipped: true }];
+    eq('omitido queda "omitido"',
+      F.occurrencesWithStatus(conRec(omitido), haceUnMes, haceUnMes)[0].status, 'omitido');
+    near('omitido devuelve el dinero al saldo',
+      F.balanceAt(conRec(omitido), hoy), 1000 - 50);
+    eq('omitido desaparece de los flujos',
+      F.flowsBetween(conRec(omitido), haceUnMes, haceUnMes).length, 0);
+
+    // Una confirmación puede mover el cargo a otro mes: no debe perderse.
+    const movido = [{ recurringId: 'r1', dueDate: haceUnMes, paidDate: D.addDays(haceUnMes, 3), amount: null, skipped: false }];
+    eq('un cargo movido de fecha no aparece en su fecha prevista',
+      F.flowsBetween(conRec(movido), haceUnMes, haceUnMes).length, 0);
+    eq('un cargo movido de fecha aparece en la fecha real',
+      F.flowsBetween(conRec(movido), D.addDays(haceUnMes, 3), D.addDays(haceUnMes, 3)).length, 1);
+    near('mover de fecha no cambia el saldo total',
+      F.balanceAt(conRec(movido), hoy), F.balanceAt(conRec(), hoy));
+
+    eq('los avisos de vencidos solo traen los "asumido"',
+      F.pendingCharges(conRec(confirmado), 3).vencidos.every((o) => o.status === 'asumido'), true);
+
+    /* --------------------------------------------------- sueldo del mes -- */
+    describe('Presupuesto del mes');
+
+    const mkMes = (over = {}) => ({
+      settings: { currency: 'EUR', locale: 'es-ES', initialBalance: 0, trackingStart: '2026-06-01' },
+      transactions: [
+        { id: 't1', date: '2026-06-02', kind: 'ingreso', amount: 2000, categoryId: null, note: 'Nómina' },
+        { id: 't2', date: '2026-06-05', kind: 'gasto', amount: 300, categoryId: null, note: 'Compra' },
+      ],
+      recurrings: [],
+      confirmations: [],
+      ...over,
+    });
+
+    const b = F.monthBudget(mkMes(), '2026-06');
+    near('ingresos del mes', b.income, 2000);
+    near('gastos del mes', b.expense, 300);
+    near('balance del mes', b.net, 1700);
+    eq('las semanas del mes suman el total del mes',
+      Math.round(F.weeksOfMonth(mkMes(), '2026-06').reduce((s, w) => s + w.expense, 0) * 100),
+      Math.round(b.expense * 100));
+    eq('junio de 2026 tiene 5 semanas parciales', F.weeksOfMonth(mkMes(), '2026-06').length, 5);
+    eq('la primera semana empieza el día 1', F.weeksOfMonth(mkMes(), '2026-06')[0].from, '2026-06-01');
+    eq('la última semana acaba el último día', F.weeksOfMonth(mkMes(), '2026-06').at(-1).to, '2026-06-30');
+    eq('los meses del año son 12', F.monthsOfYear(mkMes(), 2026).length, 12);
+    near('el año agrega los ingresos del mes',
+      F.monthsOfYear(mkMes(), 2026).reduce((s, m) => s + m.income, 0), 2000);
+
+    /* ------------------------------------------------------------ pinta -- */
+    const out = document.getElementById('out');
+    let html = '';
+    let current = null;
+    for (const r of results) {
+      if (r.group !== current) {
+        if (current !== null) html += '</tbody></table>';
+        current = r.group;
+        html += `<div class="group">${r.group}</div>
+          <table><thead><tr><th style="width:24px"></th><th>Prueba</th>
+          <th>Obtenido</th><th>Esperado</th></tr></thead><tbody>`;
+      }
+      const fmt = (v) => `<code>${String(JSON.stringify(v) ?? v).replace(/</g, '&lt;').slice(0, 120)}</code>`;
+      html += `<tr class="${r.ok ? '' : 'ko'}">
+        <td class="${r.ok ? 'ok-mark' : 'ko-mark'}">${r.ok ? '✓' : '✗'}</td>
+        <td>${r.name}</td><td>${fmt(r.actual)}</td><td>${fmt(r.expected)}</td></tr>`;
+    }
+    html += '</tbody></table>';
+    out.innerHTML = html;
+
+    const failed = results.filter((r) => !r.ok).length;
+    const sum = document.getElementById('summary');
+    sum.className = failed ? 'fail' : 'pass';
+    sum.textContent = failed
+      ? `${failed} de ${results.length} pruebas FALLAN`
+      : `Las ${results.length} pruebas pasan ✓`;
+    document.title = (failed ? `✗ ${failed} fallos` : '✓ OK') + ' · Pruebas';
+  </script>
+</body>
+</html>

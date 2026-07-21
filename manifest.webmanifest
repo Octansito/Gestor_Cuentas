@@ -1,0 +1,52 @@
+{
+  "name": "Gestor de Cuentas",
+  "short_name": "Cuentas",
+  "description": "Gestiona gastos, ingresos y gastos recurrentes con intereses, y mira cuánto suponen a lo largo del tiempo. Sin conexión y sin servidor.",
+  "start_url": "./index.html#/resumen",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
+  "lang": "es",
+  "dir": "ltr",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nuevo movimiento",
+      "short_name": "Añadir",
+      "url": "./index.html#/movimientos"
+    },
+    {
+      "name": "Proyección",
+      "short_name": "Proyección",
+      "url": "./index.html#/proyeccion"
+    }
+  ]
+}
