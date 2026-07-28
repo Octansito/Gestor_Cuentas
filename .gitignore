@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+
+# Copias de seguridad y calendarios exportados desde la app
+gestor-cuentas-*.json
+cobros-gestor-cuentas.ics

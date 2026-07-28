@@ -13,6 +13,7 @@ import { pendingCharges } from './finance.js';
 import * as resumen from './views/resumen.js';
 import * as movimientos from './views/movimientos.js';
 import * as recurrentes from './views/recurrentes.js';
+import * as inversiones from './views/inversiones.js';
 import * as historico from './views/historico.js';
 import * as proyeccion from './views/proyeccion.js';
 import * as ajustes from './views/ajustes.js';
@@ -21,6 +22,7 @@ const ROUTES = {
   resumen,
   movimientos,
   recurrentes,
+  inversiones,
   historico,
   proyeccion,
   ajustes,

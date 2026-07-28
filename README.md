@@ -101,7 +101,11 @@ este mes. Barra de cuánto llevas gastado del sueldo. Avisos de los cobros que
 llegan y de los que ya han pasado sin confirmar.
 
 ### Movimientos puntuales
-Gastos e ingresos sueltos, con categoría, fecha y concepto.
+Gastos e ingresos sueltos, con categoría, fecha y concepto. **El motivo es
+obligatorio** (categoría o concepto), para que el calendario y el histórico
+siempre puedan decir en qué fue el dinero. Se ven en **lista** o en un
+**calendario** mensual: tocas un día y sale el resumen de ingresos y gastos de
+ese día con su motivo.
 
 ### Recurrentes
 Dos tipos:
@@ -116,6 +120,17 @@ Dos tipos:
 Cada vencimiento se puede **marcar como cobrado**, corrigiendo el importe si te
 cobraron otra cosa, o marcarlo como no cobrado. Ver
 [Confirmación de cobros](#confirmación-de-cobros).
+
+### Cartera (inversiones)
+Sigue tu inversión (MyInvestor u otra), **aparte del día a día**. Registras lo
+que **aportas** de tu bolsillo y anotas cada par de días el **valor total** que
+te marca el broker. La app calcula **aportado / ganado / valor total** y dibuja
+una **gráfica de puntos** de cómo sube y baja, por semanas o por meses.
+
+Detalle importante: la **ganancia** es `valor − aportado`, así que meter dinero
+no cuenta como haber ganado (la gráfica de ganancia es neutral a las
+aportaciones — enseña solo lo que hace el mercado). No toca tu "te queda para
+gastar": es una sección independiente.
 
 ### Histórico
 Cuánto has ganado y gastado **por semana** (de lunes a domingo) y **por mes**,

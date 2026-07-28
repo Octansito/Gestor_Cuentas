@@ -59,6 +59,32 @@ function defaultState() {
     recurrings: [],
     // Marcas de "esto me lo han cobrado de verdad". Ver confirmKey() abajo.
     confirmations: [],
+    // Inversiones (MyInvestor u otra). Sección aparte: no toca el saldo del
+    // día a día. `contributions` = lo que aportas de tu bolsillo (o retiras, en
+    // negativo); `valuations` = el valor total que anotas cada par de días.
+    investment: {
+      name: 'MyInvestor',
+      contributions: [],
+      valuations: [],
+    },
+  };
+}
+
+function normalizeInvestment(inv) {
+  const base = { name: 'MyInvestor', contributions: [], valuations: [] };
+  if (!inv || typeof inv !== 'object') return base;
+  return {
+    name: typeof inv.name === 'string' && inv.name ? inv.name : base.name,
+    contributions: Array.isArray(inv.contributions) ? inv.contributions : [],
+    // Una valoración es {id, date, mode:'total'|'ganancia', amount}. Las de
+    // versiones anteriores traían {value} (siempre valor total): las convertimos.
+    valuations: Array.isArray(inv.valuations)
+      ? inv.valuations.map((v) => (
+          v.mode
+            ? v
+            : { id: v.id, date: v.date, mode: 'total', amount: v.value ?? v.amount ?? 0 }
+        ))
+      : [],
   };
 }
 
@@ -139,6 +165,7 @@ function migrate(data) {
     transactions: Array.isArray(data.transactions) ? data.transactions : [],
     recurrings: Array.isArray(data.recurrings) ? data.recurrings : [],
     confirmations: Array.isArray(data.confirmations) ? data.confirmations : [],
+    investment: normalizeInvestment(data.investment),
   };
   out.version = SCHEMA_VERSION;
   return out;
@@ -244,6 +271,56 @@ export function deleteRecurring(id) {
 export function updateSettings(patch) {
   update((s) => { Object.assign(s.settings, patch); });
   setFormatOptions(state.settings);
+}
+
+/* ------------------------------------------------------ inversiones -- */
+
+export function setInvestmentName(name) {
+  update((s) => { s.investment.name = name || 'Inversiones'; });
+}
+
+/** Aportación (o retirada, si `amount` es negativo) de dinero a la cartera. */
+export function addContribution({ date, amount, note }) {
+  const item = { id: uid('apo'), date, amount, note: note || '' };
+  update((s) => { s.investment.contributions.push(item); });
+  return item;
+}
+
+export function updateContribution(id, patch) {
+  update((s) => {
+    const i = s.investment.contributions.findIndex((c) => c.id === id);
+    if (i >= 0) s.investment.contributions[i] = { ...s.investment.contributions[i], ...patch };
+  });
+}
+
+export function deleteContribution(id) {
+  update((s) => {
+    s.investment.contributions = s.investment.contributions.filter((c) => c.id !== id);
+  });
+}
+
+/**
+ * Valoración anotada en una fecha. `mode` dice qué número metió el usuario:
+ *   'total'    → el valor total de la cartera
+ *   'ganancia' → solo lo ganado (la app deduce el total: aportado + ganancia)
+ */
+export function addValuation({ date, mode = 'total', amount }) {
+  const item = { id: uid('val'), date, mode, amount };
+  update((s) => { s.investment.valuations.push(item); });
+  return item;
+}
+
+export function updateValuation(id, patch) {
+  update((s) => {
+    const i = s.investment.valuations.findIndex((v) => v.id === id);
+    if (i >= 0) s.investment.valuations[i] = { ...s.investment.valuations[i], ...patch };
+  });
+}
+
+export function deleteValuation(id) {
+  update((s) => {
+    s.investment.valuations = s.investment.valuations.filter((v) => v.id !== id);
+  });
 }
 
 export function categoriesFor(kind) {
@@ -353,6 +430,32 @@ export function loadDemoData() {
     { id: uid('tx'), date: iso(-1, 20), kind: 'gasto',   amount: 88,    categoryId: 'cat-super',       note: 'Compra semanal' },
     { id: uid('tx'), date: iso(-2, 9),  kind: 'ingreso', amount: 300,   categoryId: 'cat-otros-i',     note: 'Venta bici' },
   ];
+
+  // Inversión de ejemplo: aportación inicial + 200 €/mes, y valoraciones que
+  // suben y bajan (para que la gráfica no sea una recta perfecta).
+  state.investment = {
+    name: 'MyInvestor',
+    contributions: [
+      { id: uid('apo'), date: iso(-6, 2), amount: 3000, note: 'Aportación inicial' },
+      { id: uid('apo'), date: iso(-5, 2), amount: 200, note: '' },
+      { id: uid('apo'), date: iso(-4, 2), amount: 200, note: '' },
+      { id: uid('apo'), date: iso(-3, 2), amount: 200, note: '' },
+      { id: uid('apo'), date: iso(-2, 2), amount: 200, note: '' },
+      { id: uid('apo'), date: iso(-1, 2), amount: 200, note: '' },
+    ],
+    // Valores elegidos para que la ganancia (valor − aportado) oscile pero
+    // acabe en positivo. Aportado en cada fecha: 3000, 3200, 3400, 3600, 3800, 4000.
+    valuations: [
+      { id: uid('val'), date: iso(-6, 4),  mode: 'total', amount: 3030 },   // +30
+      { id: uid('val'), date: iso(-5, 6),  mode: 'total', amount: 3275 },   // +75
+      { id: uid('val'), date: iso(-4, 8),  mode: 'total', amount: 3440 },   // +40  (baja la ganancia)
+      { id: uid('val'), date: iso(-3, 5),  mode: 'total', amount: 3760 },   // +160 (sube)
+      { id: uid('val'), date: iso(-2, 7),  mode: 'total', amount: 3890 },   // +90  (baja)
+      { id: uid('val'), date: iso(-1, 6),  mode: 'total', amount: 4240 },   // +240 (sube)
+      { id: uid('val'), date: iso(0, Math.min(4, 28)), mode: 'total', amount: 4360 },  // +360
+    ],
+  };
+
   persist();
   setFormatOptions(state.settings);
   emit();

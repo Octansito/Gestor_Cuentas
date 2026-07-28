@@ -36,6 +36,7 @@
   <script type="module">
     import * as F from '../js/finance.js';
     import * as D from '../js/format.js';
+    import * as INV from '../js/investments.js';
 
     const results = [];
     let group = '';
@@ -249,6 +250,86 @@
     eq('los meses del año son 12', F.monthsOfYear(mkMes(), 2026).length, 12);
     near('el año agrega los ingresos del mes',
       F.monthsOfYear(mkMes(), 2026).reduce((s, m) => s + m.income, 0), 2000);
+
+    /* --------------------------------------------------- inversiones -- */
+    describe('Inversiones');
+
+    const mkInv = (contributions, valuations) => ({
+      investment: { name: 'Test', contributions, valuations },
+    });
+
+    // Cartera básica: aporto 1000, vale 1100 → gano 100 (+10 %).
+    let isum = INV.investmentSummary(mkInv(
+      [{ id: 'a1', date: '2026-01-01', amount: 1000 }],
+      [{ id: 'v1', date: '2026-01-10', value: 1100 }],
+    ));
+    near('aportado', isum.aportado, 1000);
+    near('valor actual', isum.valorActual, 1100);
+    near('ganancia = valor − aportado', isum.ganancia, 100);
+    near('rentabilidad %', isum.rentabilidad, 10);
+
+    // Aportar NO es ganar: meto 500 tras la última valoración → valor sube 500,
+    // ganancia intacta.
+    isum = INV.investmentSummary(mkInv(
+      [{ id: 'a1', date: '2026-01-01', amount: 1000 }, { id: 'a2', date: '2026-01-20', amount: 500 }],
+      [{ id: 'v1', date: '2026-01-10', value: 1100 }],
+    ));
+    near('valor sube con la aportación posterior', isum.valorActual, 1600);
+    near('la ganancia no cambia al aportar', isum.ganancia, 100);
+    near('aportado total incluye la nueva', isum.aportado, 1500);
+
+    // Pérdida: aporto 1000, vale 900 → −100.
+    isum = INV.investmentSummary(mkInv(
+      [{ id: 'a1', date: '2026-01-01', amount: 1000 }],
+      [{ id: 'v1', date: '2026-01-10', value: 900 }],
+    ));
+    near('ganancia negativa', isum.ganancia, -100);
+    near('rentabilidad negativa', isum.rentabilidad, -10);
+
+    // Sin valoraciones: el valor es lo aportado y no hay ganancia inventada.
+    isum = INV.investmentSummary(mkInv([{ id: 'a1', date: '2026-01-01', amount: 1000 }], []));
+    near('sin valoración, vale lo aportado', isum.valorActual, 1000);
+    near('sin valoración, ganancia 0', isum.ganancia, 0);
+
+    // Retirada (aportación negativa) baja lo aportado.
+    isum = INV.investmentSummary(mkInv(
+      [{ id: 'a1', date: '2026-01-01', amount: 1000 }, { id: 'a2', date: '2026-02-01', amount: -300 }],
+      [{ id: 'v1', date: '2026-02-05', value: 800 }],
+    ));
+    near('retirar baja lo aportado', isum.aportado, 700);
+    near('ganancia tras retirada', isum.ganancia, 100);
+
+    // Anotar la GANANCIA (en vez del valor total): el total = aportado + ganancia.
+    isum = INV.investmentSummary(mkInv(
+      [{ id: 'a1', date: '2026-01-01', amount: 2000 }],
+      [{ id: 'v1', date: '2026-01-10', mode: 'ganancia', amount: 150 }],
+    ));
+    near('anotando ganancia, el total = aportado + ganancia', isum.valorActual, 2150);
+    near('anotando ganancia, la ganancia es la anotada', isum.ganancia, 150);
+
+    // Ganancia negativa (pérdidas) anotada como tal.
+    isum = INV.investmentSummary(mkInv(
+      [{ id: 'a1', date: '2026-01-01', amount: 2000 }],
+      [{ id: 'v1', date: '2026-01-10', mode: 'ganancia', amount: -120 }],
+    ));
+    near('ganancia negativa anotada', isum.ganancia, -120);
+    near('valor total con pérdida', isum.valorActual, 1880);
+
+    // Una valoración vieja {value} (sin mode) se sigue leyendo como valor total.
+    isum = INV.investmentSummary(mkInv(
+      [{ id: 'a1', date: '2026-01-01', amount: 1000 }],
+      [{ id: 'v1', date: '2026-01-10', value: 1100 }],
+    ));
+    near('compatibilidad con valoraciones antiguas', isum.valorActual, 1100);
+
+    // Serie: la ganancia de cada punto es deposit-neutral.
+    const serie = INV.investmentSeries(mkInv(
+      [{ id: 'a1', date: '2026-01-01', amount: 1000 }, { id: 'a2', date: '2026-02-01', amount: 1000 }],
+      [{ id: 'v1', date: '2026-01-15', value: 1050 }, { id: 'v2', date: '2026-02-15', value: 2080 }],
+    ), 'mes');
+    eq('la serie mensual da un punto por mes', serie.length, 2);
+    near('ganancia del primer punto', serie[0].ganancia, 50);   // 1050 − 1000
+    near('ganancia del segundo punto (neutral al 2º ingreso)', serie[1].ganancia, 80); // 2080 − 2000
 
     /* ------------------------------------------------------------ pinta -- */
     const out = document.getElementById('out');

@@ -125,7 +125,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   right: 0;
   z-index: 30;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   background: color-mix(in srgb, var(--bg-elev) 92%, transparent);
   backdrop-filter: blur(14px);
   border-top: 1px solid var(--border);
@@ -141,12 +141,23 @@ button, input, select, textarea { font: inherit; color: inherit; }
   gap: 3px;
   text-decoration: none;
   color: var(--text-faint);
-  font-size: 10.5px;
+  font-size: 9.5px;
   font-weight: 550;
   transition: color 0.15s;
+  min-width: 0;
+  padding: 0 2px;
 }
 
-.tab svg { width: 21px; height: 21px; fill: currentColor; }
+.tab svg { width: 20px; height: 20px; fill: currentColor; }
+
+/* Con 6 pestañas las etiquetas van justas: que recorten con "…" antes que
+   desbordar o partirse en dos líneas. */
+.tab span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .tab[aria-current="page"] { color: var(--accent); }
 
@@ -644,6 +655,49 @@ table.data td { border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, t
 table.data th:first-child, table.data td:first-child { text-align: left; }
 table.data tbody tr:hover { background: var(--bg-elev-2); }
 table.data tr.year-end td { font-weight: 650; }
+
+/* ------------------------------------------------------------ calendario -- */
+
+.cal {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.cal__head {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text-faint);
+  padding-bottom: 4px;
+}
+
+.cal__cell {
+  aspect-ratio: 1 / 1;
+  border: 1px solid transparent;
+  background: var(--bg-elev-2);
+  border-radius: 9px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  cursor: pointer;
+  padding: 0;
+  color: var(--text);
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.cal__cell--has { background: color-mix(in srgb, var(--accent) 10%, var(--bg-elev-2)); }
+.cal__cell--today { border-color: var(--accent); }
+.cal__cell--sel { background: var(--accent); color: #fff; }
+.cal__cell--sel .cal__day { color: #fff; }
+
+.cal__day { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.cal__dots { display: flex; gap: 2px; height: 5px; align-items: center; }
+.cal__dot { width: 5px; height: 5px; border-radius: 50%; display: block; }
+.cal__cell--sel .cal__dot { outline: 1px solid #fff; }
 
 /* --------------------------------------------------------------- misc -- */
 

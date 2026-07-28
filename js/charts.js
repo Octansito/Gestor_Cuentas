@@ -94,11 +94,11 @@ export function barChart(data, { height = 200 } = {}) {
  * cuando el saldo entra en negativo.
  * @param {Array<{label:string, value:number}>} points
  */
-export function lineChart(points, { height = 220, showEveryNth } = {}) {
+export function lineChart(points, { height = 220, showEveryNth, dots = false, emptyText } = {}) {
   const padL = 46, padR = 10, padT = 12, padB = 22;
   const H = height;
 
-  if (points.length < 2) return emptyChart(H, 'Se necesitan al menos dos meses');
+  if (points.length < 2) return emptyChart(H, emptyText ?? 'Se necesitan al menos dos meses');
 
   const values = points.map((p) => p.value);
   const rawMin = Math.min(0, ...values);
@@ -155,9 +155,18 @@ export function lineChart(points, { height = 220, showEveryNth } = {}) {
     'stroke-linejoin': 'round', 'stroke-linecap': 'round',
   }));
 
-  // Punto final destacado
+  // Un punto en cada valor (gráfica de puntos), o solo el final.
   const last = points.length - 1;
-  node.append(svg('circle', { cx: x(last), cy: y(points[last].value), r: 3.5, fill: stroke }));
+  if (dots) {
+    points.forEach((p, i) => {
+      node.append(svg('circle', {
+        cx: x(i), cy: y(p.value), r: i === last ? 3.8 : 2.6,
+        fill: i === last ? stroke : 'var(--bg-elev)', stroke, 'stroke-width': 1.5,
+      }));
+    });
+  } else {
+    node.append(svg('circle', { cx: x(last), cy: y(points[last].value), r: 3.5, fill: stroke }));
+  }
 
   // Etiquetas del eje X: solo algunas, para que no se solapen
   const nth = showEveryNth ?? Math.max(1, Math.ceil(points.length / 6));

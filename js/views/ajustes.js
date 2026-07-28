@@ -140,7 +140,7 @@ export function render(rerender) {
   root.append(h('div.card',
     h('div.small.muted', { style: { lineHeight: '1.6' } },
       h('p', { style: { marginTop: 0 } },
-        h('strong', 'Gestor de Cuentas'), ' · versión 1.1'),
+        h('strong', 'Gestor de Cuentas'), ' · versión 1.3'),
       h('p',
         'Todos los datos se guardan ',
         h('strong', 'solo en este dispositivo'),

@@ -75,6 +75,11 @@ export function transactionForm(existing = null) {
           return markInvalid(amountInput, 'Introduce un importe mayor que cero.');
         }
         if (!dateInput.value) return markInvalid(dateInput, 'Elige una fecha.');
+        // Motivo obligatorio: o eliges categoría, o escribes un concepto. Así el
+        // calendario y el histórico siempre pueden decir en qué fue el dinero.
+        if (!categoryId && !noteInput.value.trim()) {
+          return markInvalid(noteInput, 'Di en qué fue: elige una categoría o escribe el concepto.');
+        }
 
         const data = {
           kind, amount: Math.abs(amount), date: dateInput.value,
