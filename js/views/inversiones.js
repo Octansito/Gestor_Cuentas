@@ -66,6 +66,14 @@ export function render(rerender) {
     ));
   }
 
+  /* Botones de añadir ARRIBA, para que nunca queden bajo el menú inferior. */
+  root.append(h('div.row-actions', { style: { marginTop: '14px' } },
+    h('button.btn.btn--primary', { onclick: () => valuationForm() },
+      svgIcon(ICONS.plus), 'Anotar valor de hoy'),
+    h('button.btn', { onclick: () => contributionForm() },
+      svgIcon(ICONS.plus), 'Aportar / retirar'),
+  ));
+
   /* -------------------------------------------------------- gráfica ----- */
   root.append(h('h2.section-title', 'Evolución'));
 
@@ -100,13 +108,6 @@ export function render(rerender) {
   ));
 
   /* ---------------------------------------------------- valoraciones --- */
-  root.append(h('div.row-actions',
-    h('button.btn.btn--primary', { onclick: () => valuationForm() },
-      svgIcon(ICONS.plus), 'Anotar valor de hoy'),
-    h('button.btn', { onclick: () => contributionForm() },
-      svgIcon(ICONS.plus), 'Aportar / retirar'),
-  ));
-
   if (s.valuations.length) {
     root.append(h('h2.section-title', 'Valoraciones anotadas'));
     root.append(h('div.list', ...[...s.valuations].reverse().slice(0, 8).map((v) => {
@@ -306,4 +307,4 @@ function renameForm(rerender) {
   setTimeout(() => input.focus(), 60);
 }
 
-export const title = 'Cartera';
+export const title = 'Inversiones';

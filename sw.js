@@ -7,7 +7,7 @@
  * navegadores que ya tengan la app instalada seguirán sirviendo la copia vieja.
  */
 
-const VERSION = 'v5';
+const VERSION = 'v6';
 const CACHE = `gestor-cuentas-${VERSION}`;
 
 const PRECACHE = [

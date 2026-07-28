@@ -121,7 +121,7 @@ Cada vencimiento se puede **marcar como cobrado**, corrigiendo el importe si te
 cobraron otra cosa, o marcarlo como no cobrado. Ver
 [Confirmación de cobros](#confirmación-de-cobros).
 
-### Cartera (inversiones)
+### Inversiones
 Sigue tu inversión (MyInvestor u otra), **aparte del día a día**. Registras lo
 que **aportas** de tu bolsillo y anotas cada par de días el **valor total** que
 te marca el broker. La app calcula **aportado / ganado / valor total** y dibuja
