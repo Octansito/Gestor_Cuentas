@@ -26,13 +26,26 @@ export function render(rerender) {
 
   const vacio = !s.nAportaciones && !s.nValoraciones;
   if (vacio) {
-    root.append(empty({
-      icon: '📈',
-      title: 'Aún no hay inversiones',
-      text: 'Registra lo que tienes metido y ve anotando cada par de días el valor que te '
-          + 'marca MyInvestor. La app te dirá cuánto has ganado y te dibujará la evolución.',
-      action: h('button.btn.btn--primary', { onclick: () => contributionForm() }, 'Añadir aportación'),
-    }));
+    root.append(h('div.empty',
+      h('div.empty__icon', '📈'),
+      h('div.empty__title', 'Empieza tu inversión en dos pasos'),
+    ));
+    root.append(h('div.card',
+      h('div.tip', { class: 'tip--info' },
+        h('div.tip__title', '1. Mete lo que ya tienes'),
+        h('div.tip__text', 'Tu punto de partida: el dinero que ya tienes invertido ahora mismo, '
+          + 'con la fecha aproximada. Luego irás sumando lo que metas cada mes.'),
+      ),
+      h('div.tip', { class: 'tip--info', style: { marginTop: '14px' } },
+        h('div.tip__title', '2. Anota el valor cada par de días'),
+        h('div.tip__text', 'El número que te marca MyInvestor. La app calcula si has ganado o '
+          + 'perdido respecto a lo que metiste, y te dibuja la subida y bajada.'),
+      ),
+      h('button.btn.btn--primary.btn--block', {
+        style: { marginTop: '16px' },
+        onclick: () => contributionForm(),
+      }, 'Empezar: meter lo que ya tengo'),
+    ));
     return root;
   }
 
@@ -73,6 +86,17 @@ export function render(rerender) {
     h('button.btn', { onclick: () => contributionForm() },
       svgIcon(ICONS.plus), 'Aportar / retirar'),
   ));
+
+  // Ya hay punto de partida pero aún no se ha anotado ningún valor: guía al
+  // siguiente paso, que es el que enseña las subidas y bajadas.
+  if (!s.nValoraciones) {
+    root.append(h('div.alert.alert--info', { style: { marginTop: '12px' } },
+      h('div.alert__title', svgIcon(ICONS.chart), 'Siguiente paso'),
+      h('div.alert__text', 'Ya tienes tu punto de partida. Ahora, cada par de días, pulsa '
+        + '"Anotar valor de hoy" con lo que te marque MyInvestor. Con dos anotaciones ya '
+        + 'verás la gráfica de si sube o baja.'),
+    ));
+  }
 
   /* -------------------------------------------------------- gráfica ----- */
   root.append(h('h2.section-title', 'Evolución'));
@@ -226,6 +250,8 @@ function valuationForm(existing = null) {
 
 function contributionForm(existing = null) {
   let tipo = existing ? (existing.amount >= 0 ? 'aportar' : 'retirar') : 'aportar';
+  // La primera aportación es el punto de partida: la etiquetamos así por defecto.
+  const esPrimera = !existing && getState().investment.contributions.length === 0;
 
   const amountInput = h('input.input.input--amount', {
     type: 'text', inputmode: 'decimal', placeholder: '0,00',
@@ -233,7 +259,10 @@ function contributionForm(existing = null) {
     'aria-label': 'Importe',
   });
   const dateInput = h('input.input', { type: 'date', value: existing?.date ?? todayISO() });
-  const noteInput = h('input.input', { type: 'text', placeholder: 'p. ej. Aportación mensual', value: existing?.note ?? '', maxlength: 60 });
+  const noteInput = h('input.input', {
+    type: 'text', placeholder: 'p. ej. Aportación mensual',
+    value: existing?.note ?? (esPrimera ? 'Punto de partida' : ''), maxlength: 60,
+  });
 
   const seg = h('div.segmented');
   const renderSeg = () => {
@@ -246,7 +275,7 @@ function contributionForm(existing = null) {
   renderSeg();
 
   modal({
-    title: existing ? 'Editar aportación' : 'Aportar o retirar',
+    title: existing ? 'Editar aportación' : esPrimera ? 'Punto de partida' : 'Aportar o retirar',
     render: (close) => {
       const submit = () => {
         const raw = readNumber(amountInput);
@@ -260,8 +289,13 @@ function contributionForm(existing = null) {
       };
 
       return h('form', { onsubmit: (e) => { e.preventDefault(); submit(); } },
-        seg,
-        h('div.field__hint', { style: { margin: '8px 0 4px' } },
+        esPrimera
+          ? h('div.field__hint', { style: { margin: '0 0 12px' } },
+              'Cuánto tienes YA invertido ahora mismo. Es tu punto de partida: a partir de aquí, '
+              + 'lo que anotes cada par de días dirá si sube o baja.')
+          : null,
+        esPrimera ? null : seg,
+        esPrimera ? null : h('div.field__hint', { style: { margin: '8px 0 4px' } },
           'Aportar = dinero que metes de tu bolsillo. Retirar = dinero que sacas. '
           + 'Esto no cuenta como ganancia ni pérdida, solo mueve lo aportado.'),
         h('div', { style: { margin: '10px 0 14px' } }, amountInput),
