@@ -63,7 +63,11 @@ function semanas(root, state, rerender) {
   }));
 
   const ws = weeksOfMonth(state, cursorMes);
-  const mes = monthBudget(state, cursorMes);
+  // Los totales del mes salen de las propias semanas (ya sin hucha).
+  const mes = {
+    income: Math.round(ws.reduce((s, w) => s + w.income, 0) * 100) / 100,
+    expense: Math.round(ws.reduce((s, w) => s + w.expense, 0) * 100) / 100,
+  };
 
   root.append(h('div.duo',
     h('div.stat',

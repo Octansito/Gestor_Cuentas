@@ -15,6 +15,7 @@ import * as resumen from './views/resumen.js';
 import * as movimientos from './views/movimientos.js';
 import * as recurrentes from './views/recurrentes.js';
 import * as inversiones from './views/inversiones.js';
+import * as hucha from './views/hucha.js';
 import * as historico from './views/historico.js';
 import * as proyeccion from './views/proyeccion.js';
 import * as ajustes from './views/ajustes.js';
@@ -24,6 +25,7 @@ const ROUTES = {
   movimientos,
   recurrentes,
   inversiones,
+  hucha,
   historico,
   proyeccion,
   ajustes,

@@ -11,6 +11,7 @@
 
 import {
   addDays, addMonths, cmpISO, daysInMonth, monthIndex, monthKey, parseISO, toISO,
+  cycleRange, cycleNextStart, cyclePrevStart, cycleLabelKey,
 } from './format.js';
 
 /** Frecuencias soportadas para los movimientos recurrentes. */
@@ -382,7 +383,32 @@ export function flowsBetween(state, from, to) {
     }
   }
 
+  // Movimientos de la hucha. `amount` positivo = meter en la hucha (sale de la
+  // cuenta → gasto); negativo = sacar (entra en la cuenta → ingreso). Se marcan
+  // con `hucha:true`: cuentan para el SALDO pero no para gastos/ingresos del mes.
+  for (const hv of state.hucha ?? []) {
+    if (cmpISO(hv.date, from) >= 0 && cmpISO(hv.date, to) <= 0) {
+      const meter = hv.amount >= 0;
+      out.push({
+        date: hv.date,
+        kind: meter ? 'gasto' : 'ingreso',
+        amount: Math.abs(hv.amount),
+        name: hv.note || (meter ? 'A la hucha' : 'De la hucha'),
+        source: 'hucha', id: hv.id, hucha: true, status: 'cobrado',
+      });
+    }
+  }
+
   return out.sort((a, b) => cmpISO(a.date, b.date));
+}
+
+/** Saldo de la hucha en una fecha (dinero apartado). */
+export function huchaBalance(state, dateISO = todayISOLocal()) {
+  let b = 0;
+  for (const hv of state.hucha ?? []) {
+    if (cmpISO(hv.date, dateISO) <= 0) b += Number(hv.amount) || 0;
+  }
+  return round2(b);
 }
 
 function trackingStartOf(settings) {
@@ -436,8 +462,10 @@ export function project(state, horizonMonths = 60, fromISO) {
     byKey.set(key, row);
   }
 
-  /* Reparto de todos los flujos del horizonte en su mes. */
+  /* Reparto de todos los flujos del horizonte en su mes (la hucha no cuenta
+     como ingreso/gasto de la proyección; es un traspaso). */
   for (const f of flowsBetween(state, start, addDays(endDate, -1))) {
+    if (f.hucha) continue;
     const row = byKey.get(monthKey(f.date));
     if (!row) continue;
     if (f.kind === 'ingreso') row.income = round2(row.income + f.amount);
@@ -484,30 +512,61 @@ function todayFirstOfMonth() {
   return toISO(n.getFullYear(), n.getMonth() + 1, 1);
 }
 
+/* -------------------------------------------------------------- ciclos -- */
+
+export function cycleStartDayOf(settings) {
+  return Math.min(31, Math.max(1, Number(settings?.cycleStartDay) || 1));
+}
+
+/** Descriptor del ciclo económico que contiene `anchorISO`. */
+export function cycleFor(state, anchorISO) {
+  const sd = cycleStartDayOf(state.settings);
+  const { from, to } = cycleRange(anchorISO, sd);
+  return { from, to, sd, key: from, labelKey: cycleLabelKey(from) };
+}
+
+export function currentCycle(state) {
+  return cycleFor(state, todayISOLocal());
+}
+
+/** Ciclo desplazado `n` posiciones (positivo = futuro). */
+export function shiftCycle(state, cycle, n) {
+  let start = cycle.from;
+  const sd = cycle.sd;
+  for (let i = 0; i < Math.abs(n); i++) {
+    start = n > 0 ? cycleNextStart(start, sd) : cyclePrevStart(start, sd);
+  }
+  return cycleFor(state, start);
+}
+
 /**
- * Foto económica de un mes: qué ha entrado y salido ya, y qué falta.
+ * Foto económica de un ciclo (mes económico): qué ha entrado y salido ya, y qué
+ * falta. Es lo que alimenta el "te queda para gastar".
  *
- * Es lo que alimenta el "te queda X del sueldo": `libre` empieza siendo el
- * total de ingresos del mes y va bajando conforme se gasta y se compromete.
+ * Los movimientos de la HUCHA mueven el saldo pero NO cuentan como gasto/ingreso
+ * del ciclo (son traspasos): se filtran de las sumas con `!f.hucha`.
  *
- * @param {string} key "YYYY-MM"
+ * @param {object} cycle  descriptor de cycleFor()/currentCycle()
  */
-export function monthBudget(state, key) {
-  const [y, m] = key.split('-').map(Number);
-  const from = toISO(y, m, 1);
-  const to = toISO(y, m, daysInMonth(y, m));
+export function monthBudget(state, cycle) {
+  const { from, to } = cycle;
   const today = todayISOLocal();
 
   const flows = flowsBetween(state, from, to);
   const hecho = (f) => f.status === 'cobrado' || f.status === 'asumido';
+  const real = (f) => !f.hucha;   // gastos/ingresos "de verdad", sin traspasos a hucha
 
   const sum = (pred) => round2(flows.filter(pred).reduce((s, f) => s + f.amount, 0));
 
-  const income = sum((f) => f.kind === 'ingreso');
-  const incomeReceived = sum((f) => f.kind === 'ingreso' && hecho(f));
-  const expense = sum((f) => f.kind === 'gasto');
-  const expenseSoFar = sum((f) => f.kind === 'gasto' && hecho(f));
+  const income = sum((f) => f.kind === 'ingreso' && real(f));
+  const incomeReceived = sum((f) => f.kind === 'ingreso' && real(f) && hecho(f));
+  const expense = sum((f) => f.kind === 'gasto' && real(f));
+  const expenseSoFar = sum((f) => f.kind === 'gasto' && real(f) && hecho(f));
   const expensePending = round2(expense - expenseSoFar);
+
+  // Traspasos a/de la hucha en el ciclo (para mostrarlos aparte).
+  const aHucha = sum((f) => f.hucha && f.kind === 'gasto');
+  const deHucha = sum((f) => f.hucha && f.kind === 'ingreso');
 
   const balance = balanceAt(state, today);
   const incomePending = round2(income - incomeReceived);
@@ -523,14 +582,14 @@ export function monthBudget(state, key) {
   const endOfMonth = round2(balance - expensePending + incomePending);
 
   return {
-    key, from, to,
+    key: cycle.key, from, to, labelKey: cycle.labelKey,
     income, incomeReceived, incomePending,
     expense, expenseSoFar, expensePending,
-    net: round2(income - expense),            // balance del mes: lo que entra menos lo que sale
-    balance,                                   // saldo real de hoy
+    aHucha, deHucha,
+    net: round2(income - expense),            // balance del ciclo: lo que entra menos lo que sale
+    balance,                                   // saldo real de hoy (sí incluye el efecto de la hucha)
     available,                                 // gastable ahora mismo, sin contar lo no cobrado
-    endOfMonth,                                // saldo previsto para el día 1 del mes que viene
-    // Cuánto del sueldo del mes te has fundido ya (0..1). Sin ingresos no aplica.
+    endOfMonth,                                // saldo previsto para el fin del ciclo
     consumido: income > 0 ? Math.min(1, expenseSoFar / income) : 0,
     comprometido: income > 0 ? Math.min(1, expense / income) : 0,
     flows,
@@ -557,7 +616,7 @@ export function weeksOfMonth(state, key) {
   while (cmpISO(cursor, last) <= 0) {
     const weekEnd = addDays(cursor, 6 - dow(cursor));
     const to = cmpISO(weekEnd, last) > 0 ? last : weekEnd;
-    const flows = flowsBetween(state, cursor, to);
+    const flows = flowsBetween(state, cursor, to).filter((f) => !f.hucha);
     weeks.push({
       n: n++,
       from: cursor,
@@ -577,7 +636,7 @@ export function monthsOfYear(state, year) {
   const out = [];
   for (let m = 1; m <= 12; m++) {
     const key = `${year}-${String(m).padStart(2, '0')}`;
-    const flows = flowsBetween(state, toISO(year, m, 1), toISO(year, m, daysInMonth(year, m)));
+    const flows = flowsBetween(state, toISO(year, m, 1), toISO(year, m, daysInMonth(year, m))).filter((f) => !f.hucha);
     const income = round2(flows.filter((f) => f.kind === 'ingreso').reduce((s, f) => s + f.amount, 0));
     const expense = round2(flows.filter((f) => f.kind === 'gasto').reduce((s, f) => s + f.amount, 0));
     out.push({ key, m, income, expense, net: round2(income - expense) });
@@ -593,7 +652,7 @@ export function byCategory(state, kind, from, to) {
   const map = new Map();
   let total = 0;
   for (const f of flowsBetween(state, from, to)) {
-    if (f.kind !== kind) continue;
+    if (f.kind !== kind || f.hucha) continue;   // la hucha no es una categoría de gasto
     const key = f.categoryId || '__none__';
     map.set(key, round2((map.get(key) || 0) + f.amount));
     total = round2(total + f.amount);

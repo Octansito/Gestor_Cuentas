@@ -39,24 +39,34 @@ export function render(rerender) {
   const trackInput = h('input.input', {
     type: 'date', value: s.settings.trackingStart || todayISO(),
   });
+  const cicloInput = h('input.input', {
+    type: 'number', min: '1', max: '31', step: '1', value: s.settings.cycleStartDay ?? 1,
+  });
 
   root.append(h('div.card',
     h('label.field',
       h('span.field__label', 'Saldo que tenías'),
       balanceInput,
-      h('span.field__hint', 'El dinero que había en tus cuentas en la fecha de abajo. Todo lo demás se calcula a partir de aquí.'),
+      h('span.field__hint', 'El dinero que tienes ahora mismo. Todo lo demás (nómina, gastos) se suma y resta a partir de aquí. Si no partes de 0, ponlo aquí.'),
     ),
     h('label.field',
       h('span.field__label', 'Fecha de ese saldo'),
       trackInput,
       h('span.field__hint', 'Los recurrentes anteriores a esta fecha no cuentan para el saldo actual: se supone que ya estaban incluidos.'),
     ),
+    h('label.field',
+      h('span.field__label', 'El mes empieza el día'),
+      cicloInput,
+      h('span.field__hint', 'Tu "mes económico". Pon 30 si cobras a final de mes y quieres que el resumen y las gráficas vayan del 30 al 30. Pon 1 para el mes natural.'),
+    ),
     h('button.btn.btn--primary.btn--block', {
       onclick: () => {
         const v = readNumber(balanceInput);
         if (!Number.isFinite(v)) return markInvalid(balanceInput, 'Introduce un número.');
         if (!trackInput.value) return markInvalid(trackInput, 'Elige una fecha.');
-        updateSettings({ initialBalance: v, trackingStart: trackInput.value });
+        const dia = Math.round(Number(cicloInput.value));
+        if (!Number.isInteger(dia) || dia < 1 || dia > 31) return markInvalid(cicloInput, 'El día debe estar entre 1 y 31.');
+        updateSettings({ initialBalance: v, trackingStart: trackInput.value, cycleStartDay: dia });
         toast('Guardado');
         rerender();
       },

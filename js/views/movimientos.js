@@ -44,7 +44,8 @@ export function render(rerender) {
   ));
 
   /* -------------------------------------------------------- totales ----- */
-  const all = flowsBetween(state, from, to);
+  // La hucha tiene su propia sección; aquí no se mezcla.
+  const all = flowsBetween(state, from, to).filter((f) => !f.hucha);
   const income = all.filter((f) => f.kind === 'ingreso').reduce((s, f) => s + f.amount, 0);
   const expense = all.filter((f) => f.kind === 'gasto').reduce((s, f) => s + f.amount, 0);
   const net = income - expense;

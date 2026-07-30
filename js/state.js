@@ -47,6 +47,8 @@ function defaultState() {
       // Fecha desde la que se cuenta. El saldo inicial es el que tenías ese día;
       // a partir de ahí se suman movimientos y vencimientos recurrentes.
       trackingStart: firstOfThisMonth(),
+      // Día en que empieza tu "mes económico" (1 = mes natural). Ver ciclos.
+      cycleStartDay: 1,
       horizonMonths: 60,
       // Avisos. `notifyDaysBefore` lo comparten los avisos de la app y el .ics,
       // para que no digan cosas distintas.
@@ -63,6 +65,9 @@ function defaultState() {
     recurrings: [],
     // Marcas de "esto me lo han cobrado de verdad". Ver confirmKey() abajo.
     confirmations: [],
+    // Hucha: dinero que apartas. {id, date, amount(+meter/-sacar), note}.
+    // Mueve el saldo pero no cuenta como gasto/ingreso del mes.
+    hucha: [],
     // Inversiones (MyInvestor u otra). Sección aparte: no toca el saldo del
     // día a día. `contributions` = lo que aportas de tu bolsillo (o retiras, en
     // negativo); `valuations` = el valor total que anotas cada par de días.
@@ -169,6 +174,7 @@ function migrate(data) {
     transactions: Array.isArray(data.transactions) ? data.transactions : [],
     recurrings: Array.isArray(data.recurrings) ? data.recurrings : [],
     confirmations: Array.isArray(data.confirmations) ? data.confirmations : [],
+    hucha: Array.isArray(data.hucha) ? data.hucha : [],
     investment: normalizeInvestment(data.investment),
   };
   out.version = SCHEMA_VERSION;
@@ -275,6 +281,26 @@ export function deleteRecurring(id) {
 export function updateSettings(patch) {
   update((s) => { Object.assign(s.settings, patch); });
   setFormatOptions(state.settings);
+}
+
+/* ------------------------------------------------------------ hucha -- */
+
+/** Movimiento de hucha. amount > 0 = meter (sale de la cuenta); < 0 = sacar. */
+export function addHucha({ date, amount, note }) {
+  const item = { id: uid('hu'), date, amount, note: note || '' };
+  update((s) => { s.hucha.push(item); });
+  return item;
+}
+
+export function updateHucha(id, patch) {
+  update((s) => {
+    const i = s.hucha.findIndex((h) => h.id === id);
+    if (i >= 0) s.hucha[i] = { ...s.hucha[i], ...patch };
+  });
+}
+
+export function deleteHucha(id) {
+  update((s) => { s.hucha = s.hucha.filter((h) => h.id !== id); });
 }
 
 /* ------------------------------------------------------ inversiones -- */

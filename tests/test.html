@@ -237,7 +237,7 @@
       ...over,
     });
 
-    const b = F.monthBudget(mkMes(), '2026-06');
+    const b = F.monthBudget(mkMes(), F.cycleFor(mkMes(), '2026-06-15'));
     near('ingresos del mes', b.income, 2000);
     near('gastos del mes', b.expense, 300);
     near('balance del mes', b.net, 1700);
@@ -250,6 +250,50 @@
     eq('los meses del año son 12', F.monthsOfYear(mkMes(), 2026).length, 12);
     near('el año agrega los ingresos del mes',
       F.monthsOfYear(mkMes(), 2026).reduce((s, m) => s + m.income, 0), 2000);
+
+    /* --------------------------------------------------------- ciclos -- */
+    describe('Ciclo del día 30');
+
+    // startDay = 1 → mes natural.
+    eq('mes natural: rango del 1 al último', D.cycleRange('2026-07-15', 1), { from: '2026-07-01', to: '2026-07-31' });
+    // startDay = 30 → del 30 al 30 incluido.
+    eq('ciclo del 30: un día 15 cae en el ciclo que empezó el 30 anterior',
+      D.cycleRange('2026-07-15', 30), { from: '2026-06-30', to: '2026-07-30' });
+    eq('ciclo del 30: el propio día 30 empieza ciclo nuevo',
+      D.cycleRange('2026-07-30', 30), { from: '2026-07-30', to: '2026-08-30' });
+    eq('febrero sin día 30 usa el último día',
+      D.cycleStartOf('2026-02-10', 30), '2026-01-30');
+    eq('el ciclo que contiene el 5 de marzo empieza el 28 de feb (no hay 30)',
+      D.cycleRange('2026-03-05', 30).from, '2026-02-28');
+
+    const stCiclo = { settings: { cycleStartDay: 30 }, transactions: [], recurrings: [], hucha: [] };
+    const cic = F.cycleFor(stCiclo, '2026-07-15');
+    eq('cycleFor da from/to del 30 al 30', [cic.from, cic.to], ['2026-06-30', '2026-07-30']);
+    eq('shiftCycle +1 pasa al ciclo siguiente', F.shiftCycle(stCiclo, cic, 1).from, '2026-07-30');
+    eq('shiftCycle -1 pasa al anterior', F.shiftCycle(stCiclo, cic, -1).from, '2026-05-30');
+
+    /* --------------------------------------------------------- hucha -- */
+    describe('Hucha');
+
+    const conHucha = (hucha) => ({
+      settings: { currency: 'EUR', locale: 'es-ES', initialBalance: 1000, trackingStart: '2026-06-01', cycleStartDay: 1 },
+      transactions: [], recurrings: [], confirmations: [], hucha,
+    });
+
+    // Meter 200 en la hucha baja el saldo; sacar 50 lo sube.
+    let hb = conHucha([{ id: 'h1', date: '2026-06-05', amount: 200 }, { id: 'h2', date: '2026-06-10', amount: -50 }]);
+    near('saldo de la hucha = metido − sacado', F.huchaBalance(hb, '2026-06-30'), 150);
+    near('meter en la hucha baja el saldo de la cuenta', F.balanceAt(hb, '2026-06-30'), 1000 - 200 + 50);
+
+    // La hucha NO cuenta como gasto/ingreso del mes.
+    const bh = F.monthBudget(hb, F.cycleFor(hb, '2026-06-15'));
+    near('la hucha no infla los gastos del mes', bh.expense, 0);
+    near('la hucha no infla los ingresos del mes', bh.income, 0);
+    near('pero el saldo sí refleja la hucha', bh.balance, 850);
+    near('lo apartado a la hucha se ve aparte', bh.aHucha, 200);
+    near('lo sacado de la hucha se ve aparte', bh.deHucha, 50);
+    eq('la hucha no aparece en byCategory',
+      F.byCategory(hb, 'gasto', '2026-06-01', '2026-06-30').items.length, 0);
 
     /* --------------------------------------------------- inversiones -- */
     describe('Inversiones');

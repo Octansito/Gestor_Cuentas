@@ -106,6 +106,65 @@ export function monthKey(iso) {
   return String(iso).slice(0, 7);
 }
 
+/* ------------------------------------------------------------- ciclos -- *
+ *
+ * Un "ciclo" es el mes económico del usuario, que puede no empezar el día 1.
+ * Con startDay = 30, el ciclo va del 30 de un mes al 30 del siguiente (ambos
+ * incluidos, como pidió el usuario). Toda la lógica del ciclo vive aquí, así
+ * que cambiar la regla es tocar solo este bloque.
+ *
+ * En meses sin ese día (febrero y el 30/31), se usa el último día del mes.
+ */
+
+/** Día en que empieza el ciclo que contiene `iso`. */
+export function cycleStartOf(iso, startDay) {
+  startDay = Math.min(31, Math.max(1, Number(startDay) || 1));
+  const { y, m, d } = parseISO(iso);
+  const startThis = Math.min(startDay, daysInMonth(y, m));
+  if (d >= startThis) return toISO(y, m, startThis);
+  const py = m === 1 ? y - 1 : y;
+  const pm = m === 1 ? 12 : m - 1;
+  return toISO(py, pm, Math.min(startDay, daysInMonth(py, pm)));
+}
+
+/** Inicio del ciclo siguiente al que empieza en `cycleStartISO`. */
+export function cycleNextStart(cycleStartISO, startDay) {
+  startDay = Math.min(31, Math.max(1, Number(startDay) || 1));
+  const { y, m } = parseISO(cycleStartISO);
+  const ny = m === 12 ? y + 1 : y;
+  const nm = m === 12 ? 1 : m + 1;
+  return toISO(ny, nm, Math.min(startDay, daysInMonth(ny, nm)));
+}
+
+/** Inicio del ciclo anterior. */
+export function cyclePrevStart(cycleStartISO, startDay) {
+  startDay = Math.min(31, Math.max(1, Number(startDay) || 1));
+  const { y, m } = parseISO(cycleStartISO);
+  const py = m === 1 ? y - 1 : y;
+  const pm = m === 1 ? 12 : m - 1;
+  return toISO(py, pm, Math.min(startDay, daysInMonth(py, pm)));
+}
+
+/**
+ * Rango [from, to] del ciclo que contiene `iso`.
+ *  - startDay = 1  → mes natural [1 .. último día].
+ *  - startDay > 1  → del día 30 al 30 del siguiente, AMBOS incluidos.
+ */
+export function cycleRange(iso, startDay) {
+  startDay = Math.min(31, Math.max(1, Number(startDay) || 1));
+  const from = cycleStartOf(iso, startDay);
+  if (startDay === 1) {
+    const { y, m } = parseISO(from);
+    return { from, to: toISO(y, m, daysInMonth(y, m)) };
+  }
+  return { from, to: cycleNextStart(from, startDay) };  // 30 → 30 incluido
+}
+
+/** Mes "dueño" del ciclo (el que ocupa la mayor parte), para etiquetarlo. */
+export function cycleLabelKey(cycleStartISO) {
+  return monthKey(addDays(cycleStartISO, 15));
+}
+
 const MONTHS_LONG = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const MONTHS_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun',

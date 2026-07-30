@@ -3,12 +3,12 @@
  * del tiempo. Incluye el cuadro de amortización de los préstamos.
  */
 
-import { h, modal, svgIcon, ICONS } from '../ui.js';
+import { h, modal, svgIcon, ICONS, confirmDialog, toast } from '../ui.js';
 import { money, percent, fmtDate, fmtDuration, fmtMonth } from '../format.js';
 import {
   FREQUENCIES, monthlyEquivalent, recurringLifetime, recurringEndDate, loanSchedule,
 } from '../finance.js';
-import { getState, categoryById } from '../state.js';
+import { getState, categoryById, deleteRecurring } from '../state.js';
 import { recurringForm } from '../forms.js';
 import { empty, fab } from './shared.js';
 import { lineChart } from '../charts.js';
@@ -116,10 +116,22 @@ function detail(rec) {
     'aria-label': 'Editar',
     title: 'Editar',
   }, svgIcon(ICONS.edit));
+  const delBtn = h('button.btn.btn--ghost', {
+    style: { color: 'var(--expense)' },
+    onclick: async () => {
+      if (await confirmDialog({
+        title: `¿Borrar "${rec.name}"?`,
+        message: 'Se elimina de la proyección y de los próximos vencimientos. No se puede deshacer.',
+        confirmText: 'Borrar', danger: true,
+      })) { deleteRecurring(rec.id); toast('Recurrente borrado'); close(); }
+    },
+    'aria-label': 'Borrar',
+    title: 'Borrar',
+  }, svgIcon(ICONS.trash));
 
   ({ close } = modal({
     title: rec.name,
-    actions: editBtn,
+    actions: h('div', { style: { display: 'flex', gap: '4px' } }, editBtn, delBtn),
     render: () => rec.type === 'prestamo' ? loanDetail(rec) : simpleDetail(rec),
   }));
 }

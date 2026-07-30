@@ -2,11 +2,11 @@
 
 import { h, svgIcon, ICONS, toast } from '../ui.js';
 import {
-  money, percent, fmtMonthLong, fmtDateRelative, addMonths, monthKey, todayISO,
-  fmtMonth, daysInMonth, parseISO, toISO,
+  money, percent, fmtMonthLong, fmtDate, fmtDateRelative, todayISO,
 } from '../format.js';
 import {
   monthBudget, project, pendingCharges, byCategory, flowsBetween,
+  currentCycle, shiftCycle, huchaBalance,
 } from '../finance.js';
 import { barChart, categoryBars } from '../charts.js';
 import { getState, categoryById, confirmOccurrence } from '../state.js';
@@ -16,13 +16,22 @@ import { transactionForm, chargeForm } from '../forms.js';
 export function render(rerender) {
   const state = getState();
   const today = todayISO();
-  const { y, m } = parseISO(today);
-  const key = monthKey(today);
-  const monthStart = toISO(y, m, 1);
-  const monthEnd = toISO(y, m, daysInMonth(y, m));
+  const cycle = currentCycle(state);
+  const monthStart = cycle.from;
+  const monthEnd = cycle.to;
 
   const root = h('div.stack');
-  const mes = monthBudget(state, key);
+  const mes = monthBudget(state, cycle);
+
+  /* Si no has puesto tu punto de partida, guíate a hacerlo (no partes de 0). */
+  if (!state.settings.initialBalance && !state.transactions.length && !state.recurrings.length) {
+    root.append(h('div.alert.alert--info',
+      h('div.alert__title', svgIcon(ICONS.edit), 'Empieza por tu punto de partida'),
+      h('div.alert__text', 'Di cuánto dinero tienes ahora mismo para que las cuentas partan de '
+        + 'ahí, no de cero. Luego mete tu nómina y tus gastos fijos.'),
+      h('a.btn.btn--block', { href: '#/ajustes', style: { marginTop: '10px' } }, 'Poner mi saldo inicial'),
+    ));
+  }
 
   /* Aviso de copia: si nunca se ha hecho o hace +30 días. Tus datos solo viven
      aquí; una copia es la única red si borras el navegador o cambias de móvil. */
@@ -147,14 +156,29 @@ export function render(rerender) {
     ),
   ));
 
-  /* ---------------------------------------------- gráfico 12 meses --- */
+  /* ------------------------------------------------------- hucha ------ */
+  const enHucha = huchaBalance(state);
+  if (enHucha !== 0 || state.hucha.length) {
+    root.append(h('a.row', { href: '#/hucha', style: { marginTop: '4px' } },
+      h('div.row__icon', '🐷'),
+      h('div.row__main',
+        h('div.row__title', 'Hucha'),
+        h('div.row__sub', 'Dinero apartado, fuera de tu saldo del día a día'),
+      ),
+      h('div.row__amount', money(enHucha)),
+    ));
+  } else {
+    root.append(h('a.btn.btn--ghost.btn--block', { href: '#/hucha', style: { marginTop: '4px' } },
+      '🐷 Abrir la hucha'));
+  }
+
+  /* ------------------------------------------- gráfico por ciclos ---- */
   const bars = [];
   for (let i = -5; i <= 6; i++) {
-    const k = monthKey(addMonths(monthStart, i));
-    const [yy, mm] = k.split('-').map(Number);
-    const fl = flowsBetween(state, toISO(yy, mm, 1), toISO(yy, mm, daysInMonth(yy, mm)));
+    const c = shiftCycle(state, cycle, i);
+    const fl = flowsBetween(state, c.from, c.to).filter((f) => !f.hucha);
     bars.push({
-      label: fmtMonth(k).split(' ')[0],
+      label: fmtMonthLong(c.labelKey).split(' ')[0].slice(0, 3),
       income: fl.filter((f) => f.kind === 'ingreso').reduce((s, f) => s + f.amount, 0),
       expense: fl.filter((f) => f.kind === 'gasto').reduce((s, f) => s + f.amount, 0),
     });
@@ -174,7 +198,7 @@ export function render(rerender) {
   /* --------------------------------------------- gasto por categoría --- */
   const cats = byCategory(state, 'gasto', monthStart, monthEnd);
   if (cats.items.length) {
-    root.append(h('h2.section-title', `En qué se te va · ${fmtMonthLong(key)}`));
+    root.append(h('h2.section-title', `En qué se te va · ${fmtMonthLong(cycle.labelKey)}`));
     root.append(h('div.card',
       ...categoryBars(cats.items.slice(0, 6).map((it) => {
         const c = it.categoryId === '__none__' ? null : categoryById(it.categoryId);
@@ -186,7 +210,7 @@ export function render(rerender) {
   }
 
   /* ---------------------------------------------------- movimientos --- */
-  const recent = mes.flows.filter((f) => f.date <= today).slice(-5).reverse();
+  const recent = mes.flows.filter((f) => f.date <= today && !f.hucha).slice(-5).reverse();
   if (recent.length) {
     root.append(h('h2.section-title', 'Últimos movimientos'));
     root.append(h('div.list', ...recent.map((f) => flowRow(f, { showDate: true }))));
