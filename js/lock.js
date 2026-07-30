@@ -14,10 +14,23 @@
 
 import { getState, updateSettings } from './state.js';
 
-const REBLOQUEO_MIN = 3;   // minutos en segundo plano tras los que se vuelve a pedir el PIN
+/**
+ * El PIN se pide UNA vez al entrar en la app. Una vez desbloqueado, ni las
+ * recargas ni volver de segundo plano lo vuelven a pedir: usamos sessionStorage,
+ * que sobrevive a las recargas pero se borra al cerrar la app del todo (esa es
+ * la próxima "entrada", donde sí se pide otra vez).
+ */
+const SESION = 'gc-desbloqueado';
 
-let desbloqueado = false;
-let ocultaDesde = 0;
+let desbloqueado = sesionAbierta();
+
+function sesionAbierta() {
+  try { return sessionStorage.getItem(SESION) === '1'; } catch { return false; }
+}
+function marcarSesion() {
+  desbloqueado = true;
+  try { sessionStorage.setItem(SESION, '1'); } catch { /* da igual */ }
+}
 
 /* -------------------------------------------------------------- hash -- */
 
@@ -40,12 +53,12 @@ export function tienePin() {
 
 export async function setPin(pin) {
   updateSettings({ pinHash: await hashPin(pin) });
-  desbloqueado = true;
+  marcarSesion();
 }
 
 export function quitarPin() {
   updateSettings({ pinHash: null });
-  desbloqueado = true;
+  marcarSesion();
 }
 
 export async function comprobarPin(pin) {
@@ -69,19 +82,6 @@ export async function pedirPersistencia() {
 /** ¿Hay que mostrar la pantalla de bloqueo ahora mismo? */
 export function bloqueada() {
   return tienePin() && !desbloqueado;
-}
-
-/**
- * Vuelve a bloquear si la app estuvo un rato en segundo plano. Se engancha una
- * sola vez desde app.js.
- */
-export function vigilarReBloqueo(onLock) {
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') { ocultaDesde = Date.now(); return; }
-    if (!tienePin() || !desbloqueado) return;
-    const min = (Date.now() - ocultaDesde) / 60000;
-    if (ocultaDesde && min >= REBLOQUEO_MIN) { desbloqueado = false; onLock(); }
-  });
 }
 
 /**
@@ -111,7 +111,7 @@ export function mostrarBloqueo(onUnlock) {
     pintarPuntos();
     if (entrada.length === 4) {
       if (await comprobarPin(entrada)) {
-        desbloqueado = true;
+        marcarSesion();
         screen.remove();
         document.body.style.overflow = '';
         onUnlock();
