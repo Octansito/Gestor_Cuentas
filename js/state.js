@@ -52,6 +52,10 @@ function defaultState() {
       // para que no digan cosas distintas.
       notifyDaysBefore: 3,
       notifyEnabled: true,
+      // Seguridad: hash del PIN de apertura (null = sin PIN). Ver js/lock.js.
+      pinHash: null,
+      // Marca de la última copia de seguridad, para avisar si llevas mucho.
+      lastBackup: null,
       createdAt: todayISO(),
     },
     categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })),

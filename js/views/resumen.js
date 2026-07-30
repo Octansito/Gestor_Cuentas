@@ -24,6 +24,21 @@ export function render(rerender) {
   const root = h('div.stack');
   const mes = monthBudget(state, key);
 
+  /* Aviso de copia: si nunca se ha hecho o hace +30 días. Tus datos solo viven
+     aquí; una copia es la única red si borras el navegador o cambias de móvil. */
+  const last = state.settings.lastBackup;
+  const haceMucho = !last || (parseInt(today.replace(/-/g, '')) - parseInt(last.replace(/-/g, ''))) > 30;
+  if (haceMucho && (state.transactions.length || state.recurrings.length)) {
+    root.append(h('div.alert.alert--warn',
+      h('div.alert__title', svgIcon(ICONS.download), 'Haz una copia de seguridad'),
+      h('div.alert__text',
+        last ? 'Hace más de un mes de tu última copia. ' : 'Aún no has hecho ninguna copia. ',
+        'Tus datos viven solo en este móvil: si borras los datos del navegador o cambias de '
+        + 'teléfono, se pierden. La copia es tu única red de seguridad.'),
+      h('a.btn.btn--block', { href: '#/ajustes', style: { marginTop: '10px' } }, 'Ir a Ajustes y exportar'),
+    ));
+  }
+
   /* ============================================ cuánto te queda ======== */
   root.append(h('div.hero',
     h('div.hero__label', 'Te queda para gastar'),

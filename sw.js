@@ -7,7 +7,7 @@
  * navegadores que ya tengan la app instalada seguirán sirviendo la copia vieja.
  */
 
-const VERSION = 'v7';
+const VERSION = 'v8';
 const CACHE = `gestor-cuentas-${VERSION}`;
 
 const PRECACHE = [
@@ -25,6 +25,7 @@ const PRECACHE = [
   './js/advice.js',
   './js/calendar.js',
   './js/notify.js',
+  './js/lock.js',
   './js/investments.js',
   './js/views/shared.js',
   './js/views/inversiones.js',

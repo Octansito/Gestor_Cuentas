@@ -12,6 +12,7 @@ import {
   notificationPermission, requestNotificationPermission, testNotification,
 } from '../notify.js';
 import { buildICS, countICSEvents } from '../calendar.js';
+import { setPin, quitarPin, comprobarPin } from '../lock.js';
 
 const CURRENCIES = [
   ['EUR', 'Euro (€)'],
@@ -73,6 +74,10 @@ export function render(rerender) {
         h('option', { value: code, selected: s.settings.currency === code }, label))),
     ),
   ));
+
+  /* ------------------------------------------------------- seguridad ----- */
+  root.append(h('h2.section-title', 'Seguridad'));
+  root.append(seguridadCard(s, rerender));
 
   /* ---------------------------------------------------- notificaciones --- */
   root.append(h('h2.section-title', 'Avisos de cobro'));
@@ -165,6 +170,78 @@ export function render(rerender) {
   ));
 
   return root;
+}
+
+/* --------------------------------------------------------- seguridad -- */
+
+function seguridadCard(s, rerender) {
+  const activo = Boolean(s.settings.pinHash);
+  return h('div.card',
+    h('div.kv',
+      h('span.kv__k', 'PIN al abrir la app'),
+      h('span.kv__v', { style: { color: activo ? 'var(--income)' : 'var(--text-dim)' } }, activo ? '● Activo' : 'Desactivado'),
+    ),
+    h('div.field__hint', { style: { margin: '8px 0 12px' } },
+      'Un código de 4 cifras que se pide al abrir la app. Frena a quien coja tu móvil '
+      + 'desbloqueado. No cifra los datos: la protección de fondo es el bloqueo de pantalla del móvil.'),
+    activo
+      ? h('div.row-actions', { style: { marginTop: 0 } },
+          h('button.btn', { onclick: () => pinModal('cambiar', rerender) }, 'Cambiar PIN'),
+          h('button.btn.btn--danger', { onclick: () => pinModal('quitar', rerender) }, 'Quitar PIN'),
+        )
+      : h('button.btn.btn--primary.btn--block', { onclick: () => pinModal('poner', rerender) }, 'Poner un PIN'),
+  );
+}
+
+/**
+ * Modal para poner / cambiar / quitar el PIN. Pide un teclado numérico simple
+ * con dos campos (nuevo + repetir), o el actual para quitar.
+ */
+function pinModal(accion, rerender) {
+  const actual = h('input.input', { type: 'tel', inputmode: 'numeric', maxlength: 4, placeholder: '••••', style: { textAlign: 'center', letterSpacing: '8px', fontSize: '22px' } });
+  const nuevo = h('input.input', { type: 'tel', inputmode: 'numeric', maxlength: 4, placeholder: '••••', style: { textAlign: 'center', letterSpacing: '8px', fontSize: '22px' } });
+  const repetir = h('input.input', { type: 'tel', inputmode: 'numeric', maxlength: 4, placeholder: '••••', style: { textAlign: 'center', letterSpacing: '8px', fontSize: '22px' } });
+
+  const soloDigitos = (el) => el.addEventListener('input', () => { el.value = el.value.replace(/\D/g, '').slice(0, 4); });
+  [actual, nuevo, repetir].forEach(soloDigitos);
+
+  const titulo = accion === 'quitar' ? 'Quitar el PIN' : accion === 'cambiar' ? 'Cambiar el PIN' : 'Poner un PIN';
+
+  modal({
+    title: titulo,
+    render: (close) => {
+      const guardar = async () => {
+        if (accion !== 'poner') {
+          if (!(await comprobarPin(actual.value))) return markInvalid(actual, 'PIN actual incorrecto.');
+        }
+        if (accion === 'quitar') { quitarPin(); toast('PIN quitado'); close(); rerender(); return; }
+        if (!/^\d{4}$/.test(nuevo.value)) return markInvalid(nuevo, 'El PIN son 4 cifras.');
+        if (nuevo.value !== repetir.value) return markInvalid(repetir, 'Los dos PIN no coinciden.');
+        await setPin(nuevo.value);
+        toast('PIN guardado');
+        close(); rerender();
+      };
+      return h('div',
+        accion !== 'poner'
+          ? h('label.field', h('span.field__label', 'PIN actual'), actual)
+          : null,
+        accion !== 'quitar'
+          ? h('div',
+              h('label.field', h('span.field__label', 'Nuevo PIN (4 cifras)'), nuevo),
+              h('label.field', h('span.field__label', 'Repite el PIN'), repetir),
+              h('div.note.note--warn',
+                'Apúntalo donde no se te olvide. Si lo pierdes, la única forma de entrar es '
+                + 'borrar la app y empezar de cero (por eso conviene tener una copia exportada).'),
+            )
+          : null,
+        h('div.row-actions',
+          h('button.btn', { onclick: close }, 'Cancelar'),
+          h('button.btn.btn--primary', { onclick: guardar }, 'Guardar'),
+        ),
+      );
+    },
+  });
+  setTimeout(() => (accion === 'poner' ? nuevo : actual).focus(), 60);
 }
 
 /* ------------------------------------------------------ notificaciones -- */
@@ -282,6 +359,7 @@ function doExport() {
   a.download = `gestor-cuentas-${todayISO()}.json`;
   a.click();
   URL.revokeObjectURL(url);
+  updateSettings({ lastBackup: todayISO() });
   toast('Copia descargada');
 }
 

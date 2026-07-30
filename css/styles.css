@@ -737,6 +737,35 @@ table.data tr.year-end td { font-weight: 650; }
 .row-actions { display: flex; gap: 8px; margin-top: 16px; }
 .row-actions .btn { flex: 1; }
 
+/* ------------------------------------------------------- bloqueo (PIN) -- */
+
+.lock {
+  position: fixed; inset: 0; z-index: 200;
+  background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; padding: 24px calc(24px + env(safe-area-inset-left)) calc(24px + env(safe-area-inset-bottom));
+}
+.lock__logo { font-size: 40px; }
+.lock__title { font-size: 17px; font-weight: 650; color: var(--text-dim); }
+.lock__dots { display: flex; gap: 16px; margin: 4px 0; }
+.lock__dot { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--text-faint); }
+.lock__dot.on { background: var(--accent); border-color: var(--accent); }
+.lock__err { font-size: 13px; color: var(--expense); height: 18px; font-weight: 600; }
+.lock__pad {
+  display: grid; grid-template-columns: repeat(3, 74px); gap: 14px; margin-top: 8px;
+}
+.lock__key {
+  width: 74px; height: 74px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--bg-elev); color: var(--text); font-size: 26px; font-weight: 550; cursor: pointer;
+}
+.lock__key:active { background: var(--bg-elev-2); transform: scale(0.96); }
+.shake { animation: shake 0.4s; }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }

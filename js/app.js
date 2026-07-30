@@ -9,6 +9,7 @@ import { load, subscribe, getState } from './state.js';
 import { toast } from './ui.js';
 import { watchAppOpen, setBadge } from './notify.js';
 import { pendingCharges } from './finance.js';
+import { bloqueada, mostrarBloqueo, vigilarReBloqueo, pedirPersistencia } from './lock.js';
 
 import * as resumen from './views/resumen.js';
 import * as movimientos from './views/movimientos.js';
@@ -99,7 +100,17 @@ function errorPanel(err) {
 /* ------------------------------------------------------------ arranque -- */
 
 load();
-render();
+pedirPersistencia();
+
+// Si hay PIN, se pide antes de dibujar nada. Al acertar, arranca la app.
+if (bloqueada()) {
+  mostrarBloqueo(() => render());
+} else {
+  render();
+}
+
+// Vuelve a pedir el PIN si la app estuvo un rato en segundo plano.
+vigilarReBloqueo(() => mostrarBloqueo(() => {}));
 
 window.addEventListener('hashchange', render);
 subscribe(render);
